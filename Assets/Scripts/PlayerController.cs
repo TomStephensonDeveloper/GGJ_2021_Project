@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -24,7 +25,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] [Range(0.0f, 0.5f)] float moveSmoothTime = 0; //0.1f;
     [SerializeField] [Range(0.0f, 0.5f)] float mouseSmoothTime = 0; //0.03f;
 
-    [SerializeField] bool lockCursor = true;
+
 
     float cameraAngle = 0.0f;
     float velocityY = 0.0f;
@@ -39,23 +40,53 @@ public class PlayerController : MonoBehaviour
     [Header("Headbob")]
     [SerializeField] bool bobUp = false;
     [SerializeField] float defaultYPosition; //camera container starting point
-    float timer = 0; // for bob sinwave
     [SerializeField] float walkHeadbobSpeed = 14f;
     [SerializeField] float walkHeadBobAmount = 0.06f;
     [SerializeField] float sprintHeadbobSpeed = 18f;
     [SerializeField] float sprintHeadBobAmount = 0.1f;
 
+    [SerializeField] bool canLook = true;
+    [SerializeField] bool canMove = true;
+
+
+    void Awake()
+    {
+        GiveControlToPlayer();
+    }
 
     void Start()
     {
-        //if (lockCursor)
-        //{
-        //    Cursor.lockState = CursorLockMode.Locked;
-        //    Cursor.visible = false;
-        //}
-       
+      
+
+        // Subscribe to death event
+        PlayerDeathManager.Instance.OnPlayerDied += delegate (object sender, EventArgs e)
+        {
+            RemoveControlFromPlayer();
+        };
+
+        PlayerDeathManager.Instance.OnPlayerRespawned += delegate (object sender, EventArgs e)
+        {
+            GiveControlToPlayer();
+        };
+
         bobUp = false;
         defaultYPosition = playerCameraBobContainer.localPosition.y;
+
+        GiveControlToPlayer();
+    }
+
+
+    void GiveControlToPlayer()
+    {
+        canMove = true;
+        canLook = true;
+    }
+
+    void RemoveControlFromPlayer()
+    {
+        //controller.Move(Vector3.zero);
+        canMove = false;
+        canLook = false;
     }
 
     void Update()
@@ -67,45 +98,53 @@ public class PlayerController : MonoBehaviour
 
     void UpdateMouseLook()
     {
-        Vector2 targetMouseDelta = new Vector2(Input.Instance.mousePosition.x, Input.Instance.mousePosition.y);
+        if (canLook)
+        {
+            Vector2 targetMouseDelta = new Vector2(Input.Instance.mousePosition.x, Input.Instance.mousePosition.y);
 
-        currentMouseDelta = Vector2.SmoothDamp(currentMouseDelta, targetMouseDelta, ref currentMouseDeltaVelocity, mouseSmoothTime);
+            currentMouseDelta = Vector2.SmoothDamp(currentMouseDelta, targetMouseDelta, ref currentMouseDeltaVelocity, mouseSmoothTime);
 
-        cameraAngle -= currentMouseDelta.y * mouseSensitivity;
-        cameraAngle = Mathf.Clamp(cameraAngle, -90.0f, 90.0f);
+            cameraAngle -= currentMouseDelta.y * mouseSensitivity;
+            cameraAngle = Mathf.Clamp(cameraAngle, -90.0f, 90.0f);
 
-        playerCamera.localEulerAngles = Vector3.right * cameraAngle;
-        player.Rotate(Vector3.up * currentMouseDelta.x * mouseSensitivity);
+            playerCamera.localEulerAngles = Vector3.right * cameraAngle;
+            player.Rotate(Vector3.up * currentMouseDelta.x * mouseSensitivity);
+        }
+
     }
 
     void UpdateMovement()
     {
-        Vector2 targetDir = new Vector2(Input.Instance.moveDirictionInput.x, Input.Instance.moveDirictionInput.y);
-        targetDir.Normalize();
-
-        currentDir = Vector2.SmoothDamp(currentDir, targetDir, ref currentDirVelocity, moveSmoothTime);
-
-        if (controller.isGrounded)
-            velocityY = 0.0f;
-
-        velocityY += gravity * Time.deltaTime;
-
-        Vector3 velocity = Vector3.zero;
-
-        // Sprinting
-        if (Input.Instance.holdingSprint)
+        if (canMove)
         {
-            velocity = (player.forward * currentDir.y + player.right * currentDir.x) * sprintSpeed + Vector3.up * velocityY;
+            Vector2 targetDir = new Vector2(Input.Instance.moveDirictionInput.x, Input.Instance.moveDirictionInput.y);
+            targetDir.Normalize();
 
+            currentDir = Vector2.SmoothDamp(currentDir, targetDir, ref currentDirVelocity, moveSmoothTime);
+
+            if (controller.isGrounded)
+                velocityY = 0.0f;
+
+            velocityY += gravity * Time.deltaTime;
+
+            Vector3 velocity = Vector3.zero;
+
+            // Sprinting
+            if (Input.Instance.holdingSprint)
+            {
+                velocity = (player.forward * currentDir.y + player.right * currentDir.x) * sprintSpeed + Vector3.up * velocityY;
+
+            }
+            // Walking
+            else
+            {
+                velocity = (player.forward * currentDir.y + player.right * currentDir.x) * walkSpeed + Vector3.up * velocityY;
+
+            }
+
+            controller.Move(velocity * Time.deltaTime);
         }
-        // Walking
-        else
-        {
-            velocity = (player.forward * currentDir.y + player.right * currentDir.x) * walkSpeed + Vector3.up * velocityY;
 
-        }
-
-        controller.Move(velocity * Time.deltaTime);
 
     }
 
@@ -115,58 +154,62 @@ public class PlayerController : MonoBehaviour
 
     void HandleHeadbob()
     {
-        // Check if moving
-        if (Mathf.Abs(Input.Instance.moveDirictionInput.x) > 0.1f || Mathf.Abs(Input.Instance.moveDirictionInput.y) > 0.1f)
+        if (canMove)
         {
+            // Check if moving
+            if (Mathf.Abs(Input.Instance.moveDirictionInput.x) > 0.1f || Mathf.Abs(Input.Instance.moveDirictionInput.y) > 0.1f)
+            {
 
-            // running
-            if (Input.Instance.holdingSprint)
-            {
-                if (bobUp)
+                // running
+                if (Input.Instance.holdingSprint)
                 {
-                    playerCameraBobContainer.localPosition = Vector3.MoveTowards(playerCameraBobContainer.localPosition, (new Vector3(0, defaultYPosition + sprintHeadBobAmount, 0)), sprintHeadbobSpeed * Time.deltaTime);
-                    if (playerCameraBobContainer.localPosition.y >= defaultYPosition + sprintHeadBobAmount)
+                    if (bobUp)
                     {
-                        bobUp = false;
+                        playerCameraBobContainer.localPosition = Vector3.MoveTowards(playerCameraBobContainer.localPosition, (new Vector3(0, defaultYPosition + sprintHeadBobAmount, 0)), sprintHeadbobSpeed * Time.deltaTime);
+                        if (playerCameraBobContainer.localPosition.y >= defaultYPosition + sprintHeadBobAmount)
+                        {
+                            bobUp = false;
+                        }
+                    }
+                    else
+                    {
+                        playerCameraBobContainer.localPosition = Vector3.MoveTowards(playerCameraBobContainer.localPosition, (new Vector3(0, defaultYPosition - sprintHeadBobAmount, 0)), sprintHeadbobSpeed * Time.deltaTime);
+                        if (playerCameraBobContainer.localPosition.y <= defaultYPosition - sprintHeadBobAmount)
+                        {
+                            PlayFootStepSound();
+                            bobUp = true;
+                        }
                     }
                 }
+                // walking
                 else
                 {
-                    playerCameraBobContainer.localPosition = Vector3.MoveTowards(playerCameraBobContainer.localPosition, (new Vector3(0, defaultYPosition - sprintHeadBobAmount, 0)), sprintHeadbobSpeed * Time.deltaTime);
-                    if (playerCameraBobContainer.localPosition.y <= defaultYPosition - sprintHeadBobAmount)
+                    if (bobUp)
                     {
-                        PlayFootStepSound();
-                        bobUp = true;
+                        playerCameraBobContainer.localPosition = Vector3.MoveTowards(playerCameraBobContainer.localPosition, (new Vector3(0, defaultYPosition + walkHeadBobAmount, 0)), walkHeadbobSpeed * Time.deltaTime);
+                        if (playerCameraBobContainer.localPosition.y >= defaultYPosition + walkHeadBobAmount)
+                        {
+                            bobUp = false;
+                        }
                     }
-                }
-            }
-            // walking
-            else
-            {
-                if (bobUp)
-                {
-                    playerCameraBobContainer.localPosition = Vector3.MoveTowards(playerCameraBobContainer.localPosition, (new Vector3(0, defaultYPosition + walkHeadBobAmount, 0)), walkHeadbobSpeed * Time.deltaTime);
-                    if (playerCameraBobContainer.localPosition.y >= defaultYPosition + walkHeadBobAmount)
+                    else
                     {
-                        bobUp = false;
-                    }
-                }
-                else
-                {
-                    playerCameraBobContainer.localPosition = Vector3.MoveTowards(playerCameraBobContainer.localPosition, (new Vector3(0, defaultYPosition - walkHeadBobAmount, 0)), walkHeadbobSpeed * Time.deltaTime);
-                    if (playerCameraBobContainer.localPosition.y <= defaultYPosition - walkHeadBobAmount)
-                    {
-                        PlayFootStepSound();
-                        bobUp = true;
+                        playerCameraBobContainer.localPosition = Vector3.MoveTowards(playerCameraBobContainer.localPosition, (new Vector3(0, defaultYPosition - walkHeadBobAmount, 0)), walkHeadbobSpeed * Time.deltaTime);
+                        if (playerCameraBobContainer.localPosition.y <= defaultYPosition - walkHeadBobAmount)
+                        {
+                            PlayFootStepSound();
+                            bobUp = true;
+                        }
                     }
                 }
             }
         }
+
     }
 
     void PlayFootStepSound()
     {
-        AudioManager.Instance.SetRandomPitch(audioSource,0.9f, 1.1f);
+        AudioManager.Instance.SetRandomPitch(audioSource, 0.9f, 1.1f);
         AudioManager.Instance.PlayOneShot(audioSource, footStepSound);
     }
 }

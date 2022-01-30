@@ -6,6 +6,7 @@ public class Input : Singleton<Input>
 {
     [Header("Refrences")]
     public PlayerInput playerInput;
+    public PlayerBlink playerBlink;
 
     [Header("Inputs")]
     public Vector2 mousePosition;
@@ -28,7 +29,7 @@ public class Input : Singleton<Input>
             return;
         }
 
-        if(PauseStates.Instance.paused)
+        if (PauseStates.Instance.paused)
         {
             PauseStates.Instance.Resume();
             SwitchToPlayerInput();
@@ -73,18 +74,35 @@ public class Input : Singleton<Input>
 
 
 
-    public void OnInteractionDown(InputAction.CallbackContext context)
+    public void OnInteraction(InputAction.CallbackContext context)
     {
         if (!context.performed)
         {
             return;
         }
+
+        InteractionManager.Instance.PerformCurrentInteraction();
     }
-    public void OnInteractionUp(InputAction.CallbackContext context)
+
+
+
+    public void OnBlinkDown(InputAction.CallbackContext context)
     {
         if (!context.performed)
         {
             return;
         }
+
+
+        playerBlink.BlinkDown();
+    }
+    public void OnBlinkUp(InputAction.CallbackContext context)
+    {
+        if (!context.performed)
+        {
+            return;
+        }
+
+        playerBlink.BlinkUp();
     }
 }

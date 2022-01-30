@@ -19,6 +19,10 @@ public class MenuNavigation : MonoBehaviour
 
     public Vector2 moveDirictionInput;
 
+    public AudioSource audioSource;
+    public AudioClip moveclip;
+
+
     public void OnMovement(InputAction.CallbackContext context)
     {
         moveDirictionInput = context.ReadValue<Vector2>();
@@ -51,14 +55,22 @@ public class MenuNavigation : MonoBehaviour
                     // Down
                     menuManager.NextElement();
                     lastInputTime = Time.realtimeSinceStartup;
+                    PlayMoveClip();
                 }
                 else if (menuInputY > 0.5f)
                 {
                     // Up
                     menuManager.PreviousElement();
                     lastInputTime = Time.realtimeSinceStartup;
+                    PlayMoveClip();
                 }
             }
         }
+    }
+
+
+    public void PlayMoveClip()
+    {
+        audioSource.PlayOneShot(moveclip);
     }
 }
